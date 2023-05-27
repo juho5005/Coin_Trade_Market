@@ -48,8 +48,8 @@ def format_utctime(val) :
     return val.strftime("%Y-%m-%d %H:%M:%S")
     
 
-### 마켓에서 처음에 코인 100개를 넣어두는 코드
-### 마켓의 처음 코인 개수를 100개로 다시 돌리는 거
+## 마켓에서 처음에 코인 100개를 넣어두는 코드
+## 마켓의 처음 코인 개수를 100개로 다시 돌리는 거
 
 # marketplace = db["MarketPlace"]
 # result = {
@@ -64,12 +64,12 @@ def format_utctime(val) :
 # }})
 
 
-# ## 사용자의 코인개수를 0개로 바꿔주는 코드
-# member = db["Account_DB"]
-# member.update_one({'member_id' : 'qwer'}, {"$set" : {
-#     "coin_amount" : 0,
-#     "cash_amount" : 0
-# }})
+## 사용자의 코인개수를 0개로 바꿔주는 코드
+member = db["Account_DB"]
+member.update_one({'member_id' : 'qwer'}, {"$set" : {
+    "coin_amount" : 0,
+    "cash_amount" : 0
+}})
 
 
 # 첫 화면 [홈페이지] -> 시작점
