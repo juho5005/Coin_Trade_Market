@@ -50,26 +50,19 @@ def format_utctime(val) :
 
 ## 마켓에서 처음에 코인 100개를 넣어두는 코드
 ## 마켓의 처음 코인 개수를 100개로 다시 돌리는 거
-
 # marketplace = db["MarketPlace"]
-# result = {
-#     "market_coin_id" : 'MASTER_juho',
-#     "cur_coin_amount" : 100, # 현재 코인의 개수
-#     "cur_coin_price" : 100 # 현재 코인의 가격
-# }
-# marketplace.insert_one(result)
-
 # marketplace.update_one({"market_coin_id" : "MASTER_juho"}, {"$set" : {
-#     "cur_coin_amount" : 100 
+#     "cur_coin_amount" : 100,
+#     "cur_coin_price" : 100
 # }})
 
 
 ## 사용자의 코인개수를 0개로 바꿔주는 코드
-member = db["Account_DB"]
-member.update_one({'member_id' : 'qwer'}, {"$set" : {
-    "coin_amount" : 0,
-    "cash_amount" : 0
-}})
+# member = db["Account_DB"]
+# member.update_one({'member_id' : 'juho'}, {"$set" : {
+#     "coin_amount" : 0,
+#     "cash_amount" : 0
+# }})
 
 
 # 첫 화면 [홈페이지] -> 시작점
