@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coin_Trade_Market</title>
+</head>
+<body>
+    <h1>마켓과의 코인 거래 페이지</h1>
+    <hr>
+
+    <table style="border: 1px solid black;">
+        <form method="POST" action="/coin_trade_market">
+            <tr>
+                <td>구매하고 싶은 코인 개수 : </td>
+                <td><input type="text" name="buy_coin_amount" /></td>
+            </tr>
+            <tr>
+                <td colspan="2"><input type="submit" value="코인 구매하기"/></td>
+            </tr>
+            
+        </form>
+    </table>
+    <a href="{{url_for('homepage')}}"><button>홈페이지로 가기</button></a>
+</body>
+</html>

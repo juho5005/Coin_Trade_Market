@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <meta name="description" content="" />
+    <meta name="author" content="" />
+
+    <title>Coin market</title>
+
+    <!-- Custom fonts for this template-->
+    <link
+      href="{{ url_for('static', filename='vendor/fontawesome-free/css/all.min.css') }}"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i"
+      rel="stylesheet"
+    />
+
+    <!-- Custom styles for this template-->
+    <link
+      href="{{ url_for('static', filename='css/sb-admin-2.min.css') }}"
+      rel="stylesheet"
+    />
+  </head>
+
+  <body id="page-top">
+    <div id="wrapper">
+      <!-- 사이드바 시작 -->
+      <ul
+        class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion"
+        id="accordionSidebar"
+      >
+        <!-- 사이트 로고 및 이름 -->
+        <a
+          class="sidebar-brand d-flex align-items-center justify-content-center"
+          href="{{url_for('homepage')}}"
+        >
+          <div class="sidebar-brand-icon rotate-n-15">
+            <i class="fas fa-laugh-wink"></i>
+          </div>
+          <div class="sidebar-brand-text mx-3">Coin Market</div>
+        </a>
+
+        <!-- 그냥 구분선 -->
+        <hr class="sidebar-divider my-0" />
+
+        <!-- 홈페이지 가는 link -->
+        <li class="nav-item active">
+          <a class="nav-link" href="{{url_for('homepage')}}">
+            <i class="fas fa-fw fa-tachometer-alt"></i>
+            <span>홈페이지</span></a
+          >
+        </li>
+
+        <hr class="sidebar-divider" />
+
+        {% if session["member_id"] %}
+        <!-- 게시판 가는 link -->
+        <li class="nav-item">
+          <a class="nav-link" href="{{url_for('coin_sale_list')}}">
+            <i class="fas fa-fw fa-table"></i>
+            <span>판매 게시판</span></a
+          >
+        </li>
+        {%endif %}
+      </ul>
+      <!-- 사이드바 끝 -->
+
+      <!-- 메인 컨텐츠 부분 -->
+      <div id="content-wrapper" class="d-flex flex-column">
+        <!-- Main Content -->
+        <div id="content">
+          <!-- 상단바 -> 그냥 이름있고 로그아웃 버튼 있음 -->
+          <nav
+            class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow"
+          >
+            <!-- 반응형 토글 버튼 -->
+            <button
+              id="sidebarToggleTop"
+              class="btn btn-link d-md-none rounded-circle mr-3"
+            >
+              <i class="fa fa-bars"></i>
+            </button>
+
+            <!-- 전체 top bar 내용 -->
+            <ul class="navbar-nav ml-auto">
+              <div class="topbar-divider d-none d-sm-block"></div>
+
+              <!-- 로그인 했으면 이름 나오고 클릭하면 로그아웃 버튼 나옴 -->
+              <li class="nav-item dropdown no-arrow">
+                <a
+                  class="nav-link dropdown-toggle"
+                  href="#"
+                  id="userDropdown"
+                  role="button"
+                  data-toggle="dropdown"
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                >
+                  <span class="mr-2 d-none d-lg-inline text-gray-600 small">
+                    {% if session["member_id"] %} {{session["member_id"]}}
+                    {%endif %}
+                  </span>
+                  <img
+                    class="img-profile rounded-circle"
+                    src="{{ url_for('static', filename='img/undraw_profile.svg') }}"
+                  />
+                </a>
+                <!-- 드롭다운 되서 로그아웃 버튼 나옴 -->
+                <div
+                  class="dropdown-menu dropdown-menu-right shadow animated--grow-in"
+                  aria-labelledby="userDropdown"
+                >
+                  <a
+                    class="dropdown-item"
+                    href="{{url_for('sign_out_member')}}"
+                    data-toggle="modal"
+                    data-target="#logoutModal"
+                  >
+                    <i
+                      class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"
+                    ></i>
+                    {% if session["member_id"] %} 로그아웃 {%else%} 로그인
+                    {%endif %}
+                  </a>
+                </div>
+              </li>
+            </ul>
+          </nav>
+          <!-- End of Topbar -->
+
+          <!-- top bar 아래 부분 -->
+          <div class="container-fluid">
+            <!-- Page Heading -->
+            <div
+              class="d-sm-flex align-items-center justify-content-between mb-4"
+            >
+              <h1 class="h3 mb-0 text-gray-800">홈페이지</h1>
+            </div>
+
+            {% if session["member_id"] %}
+            <!-- Content Row -->
+            <div class="row">
+              <!-- Earnings (Monthly) Card Example -->
+              <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card border-left-primary shadow h-100 py-2">
+                  <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                      <div class="col mr-2">
+                        <div
+                          class="text-xs font-weight-bold text-primary text-uppercase mb-1"
+                        >
+                          현재 코인 개수
+                        </div>
+                        <div
+                          class="h5 mb-0 font-weight-bold text-gray-800"
+                          style="width: 100%"
+                        >
+                          <!-- 여기 데이터 받아와서 넣으면 될듯 -->
+                          {{user_info.coin_amount}}
+                        </div>
+                      </div>
+                      <div style="width: 100%">
+                        <form action="/coin_trade_market" , method="POST">
+                          <div style="height: 20px"></div>
+                          <input
+                            name="buy_coin_amount"
+                            placeholder="ex:100"
+                            style="
+                              background-color: white;
+                              border-radius: 10px;
+                              border: 2px solid #4e73df;
+                            "
+                          />
+                          <!-- 이거 누르면 그냥 100원씩 정도 충전받게 하면 될듯 -->
+                          <button
+                            class="h5 mb-0 font-weight-bold text-gray-800"
+                            style="
+                              background-color: white;
+                              border-radius: 10px;
+                              border: 2px solid #4e73df;
+                            "
+                            type="submit"
+                          >
+                            구매
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Earnings (Monthly) Card Example -->
+              <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card border-left-success shadow h-100 py-2">
+                  <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                      <div class="col mr-2">
+                        <div
+                          class="text-xs font-weight-bold text-success text-uppercase mb-1"
+                        >
+                          남은 돈
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                          <!-- 여기도 데이터 받아와서 넣으면 될 듯 -->
+                          {{user_info.cash_amount}}
+                        </div>
+                      </div>
+                      <div style="width: 100%">
+                        <form action="/" , method="POST">
+                          <div style="height: 20px"></div>
+                          <input
+                            name="deposit_amount"
+                            placeholder="ex:100"
+                            style="
+                              background-color: white;
+                              border-radius: 10px;
+                              border: 2px solid #1cc88a;
+                            "
+                          />
+                          <!-- 이거 누르면 그냥 100원씩 정도 충전받게 하면 될듯 -->
+                          <button
+                            class="h5 mb-0 font-weight-bold text-gray-800"
+                            style="
+                              background-color: white;
+                              border-radius: 10px;
+                              border: 2px solid #1cc88a;
+                            "
+                            type="submit"
+                          >
+                            충전
+                          </button>
+                          <input
+                            name="withdraw_amount"
+                            placeholder="ex:100"
+                            style="
+                              background-color: white;
+                              border-radius: 10px;
+                              border: 2px solid #1cc88a;
+                              margin-top: 30px;
+                            "
+                          />
+                          <!-- 이거 누르면 그냥 100원씩 정도 충전받게 하면 될듯 -->
+                          <button
+                            class="h5 mb-0 font-weight-bold text-gray-800"
+                            style="
+                              background-color: white;
+                              border-radius: 10px;
+                              border: 2px solid #1cc88a;
+                            "
+                            type="submit"
+                          >
+                            출금
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card border-left-info shadow h-100 py-2">
+                  <div
+                    class="card-body text-xs font-weight-bold text-uppercase mb-1"
+                  >
+                    <div class="row no-gutters align-items-center">
+                      <div class="col mr-2 text-info">
+                        <div>판매하기</div>
+                        <!-- 여기 값 받아와서 -->
+                      </div>
+                      <div
+                        style="width: 100%; padding-top: 10px; font-size: 15px"
+                      >
+                        <form
+                          name="form"
+                          method="POST"
+                          action="/write_coin_sale_post"
+                        >
+                          <div
+                            style="
+                              width: 270px;
+                              display: flex;
+                              justify-content: space-between;
+                              padding-bottom: 5px;
+                            "
+                          >
+                            아이디 :
+                            <input
+                              type="text"
+                              name="sale_post_writer"
+                              value="{{session['member_id']}}"
+                              readonly
+                              style="
+                                width: 190px;
+                                border: 2px solid #36b9cc;
+                                border-radius: 10px;
+                              "
+                            />
+                          </div>
+                          <div
+                            style="
+                              width: 270px;
+                              display: flex;
+                              justify-content: space-between;
+                              padding-bottom: 5px;
+                            "
+                          >
+                            판매글 제목 :
+                            <input
+                              type="text"
+                              name="sale_post_title"
+                              style="
+                                width: 190px;
+                                border: 2px solid #36b9cc;
+                                border-radius: 10px;
+                              "
+                            />
+                          </div>
+
+                          <div
+                            style="
+                              width: 270px;
+                              display: flex;
+                              justify-content: space-between;
+                              padding-bottom: 5px;
+                            "
+                          >
+                            판매 개수 :
+                            <input
+                              type="text"
+                              name="sale_post_coin_amount"
+                              style="
+                                width: 190px;
+                                border: 2px solid #36b9cc;
+                                border-radius: 10px;
+                              "
+                            />
+                          </div>
+                          <div
+                            style="
+                              width: 270px;
+                              display: flex;
+                              justify-content: space-between;
+                              padding-bottom: 5px;
+                            "
+                          >
+                            판매 가격 :
+                            <input
+                              type="text"
+                              name="sale_post_coin_price"
+                              style="
+                                width: 190px;
+                                border: 2px solid #36b9cc;
+                                border-radius: 10px;
+                              "
+                            />
+                          </div>
+
+                          <div
+                            style="
+                              width: 270px;
+                              display: flex;
+                              justify-content: space-between;
+                            "
+                          >
+                            <div></div>
+                            <input
+                              class="h6 mb-0 font-weight-bold"
+                              style="
+                                width: 190px;
+                                background-color: #36b9cc;
+                                border-radius: 10px;
+                                border: 2px solid #36b9cc;
+                                color: white;
+                              "
+                              type="submit"
+                              value="팔기"
+                            />
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+            <!-- Content Row -->
+
+            <div class="row">
+              <!-- Area Chart -->
+              <div class="col-xl-8 col-lg-7">
+                <div class="card shadow mb-4">
+                  <!-- Card Header - Dropdown -->
+                  <div
+                    class="card-header py-3 d-flex flex-row align-items-center justify-content-between"
+                  >
+                    <h6 class="m-0 font-weight-bold text-primary">코인 추이</h6>
+                  </div>
+                  <div class="card-body">
+                    <div class="chart-area">
+                      <!-- 여기는 js파일들어가서 값 받아와서 넣으면 됨 -->
+                      <canvas id="myAreaChart"></canvas>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- Pie Chart -->
+              <div class="col-xl-4 col-lg-5">
+                <div class="card shadow mb-4">
+                  <!-- Card Header - Dropdown -->
+                  <div
+                    class="card-header py-3 d-flex flex-row align-items-center justify-content-between;"
+                  >
+                    <h6 class="m-0 font-weight-bold text-primary">
+                      현재 코인 가격
+                    </h6>
+                  </div>
+                  <!-- Card Body -->
+                  <div style="height: 155px">
+                    <div class="chart-pie pt-4 pb-2">
+                      <div
+                        style="
+                          display: flex;
+                          justify-content: center;
+                          align-items: center;
+                          font-size: 60px;
+                          color: #4e73df;
+                        "
+                      >
+                        {{market_cur_coin.cur_coin_price}}원
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    class="card-header py-3 d-flex flex-row align-items-center justify-content-between;"
+                  >
+                    <h6 class="m-0 font-weight-bold text-primary">남은 코인</h6>
+                  </div>
+                  <!-- Card Body -->
+                  <div style="height: 155px">
+                    <div class="chart-pie pt-4 pb-2">
+                      <div
+                        style="
+                          display: flex;
+                          justify-content: center;
+                          align-items: center;
+                          font-size: 60px;
+                          color: #4e73df;
+                        "
+                      >
+                        {{market_cur_coin.cur_coin_amount}}개
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- End of Main Content -->
+
+        <!-- Footer -->
+        <footer class="sticky-footer bg-white">
+          <div class="container my-auto">
+            <div class="copyright text-center my-auto">
+              <span
+                >Copyright &copy; Software Enginnering Coin Market 2023</span
+              >
+            </div>
+          </div>
+        </footer>
+        <!-- End of Footer -->
+      </div>
+      <!-- End of Content Wrapper -->
+    </div>
+    <!-- End of Page Wrapper -->
+
+    <!-- Scroll to Top Button-->
+    <a class="scroll-to-top rounded" href="#page-top">
+      <i class="fas fa-angle-up"></i>
+    </a>
+
+    <!-- Logout Modal-->
+    <div
+      class="modal fade"
+      id="logoutModal"
+      tabindex="-1"
+      role="dialog"
+      aria-labelledby="exampleModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="exampleModalLabel">
+              {% if session["member_id"] %} 로그아웃 하시겠습니까? {%else%}
+              로그인 하시겠습니까? {%endif %}
+            </h5>
+            <button
+              class="close"
+              type="button"
+              data-dismiss="modal"
+              aria-label="Close"
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            {% if session["member_id"] %} 로그아웃하시려면 로그아웃 버튼을
+            눌러주세요. {%else%} 로그인하시려면 로그인 버튼을 눌러주세요.
+            {%endif %}
+          </div>
+          <div class="modal-footer">
+            <button
+              class="btn btn-secondary"
+              type="button"
+              data-dismiss="modal"
+            >
+              Cancel
+            </button>
+            {% if session["member_id"] %}
+            <a class="btn btn-primary" href="{{url_for('sign_out_member')}}"
+              >Logout</a
+            >
+            {%else%}
+            <a class="btn btn-primary" href="{{url_for('sign_in_member')}}"
+              >Login</a
+            >
+            {%endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bootstrap core JavaScript-->
+    <script src="{{ url_for('static', filename='vendor/jquery/jquery.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+
+    <!-- Core plugin JavaScript-->
+    <script src="{{ url_for('static', filename='vendor/jquery-easing/jquery.easing.min.js') }}"></script>
+
+    <!-- Custom scripts for all pages-->
+    <script src="{{ url_for('static', filename='vendor/js/sb-admin-2.min.js') }}"></script>
+
+    <!-- Page level plugins -->
+    <script src="{{ url_for('static', filename='vendor/chart.js/Chart.min.js') }}"></script>
+
+    <!-- Page level custom scripts -->
+    <script>
+      // Set new default font family and font color to mimic Bootstrap's default styling
+      Chart.defaults.global.defaultFontFamily = 'Nunito', '-apple-system,system-ui,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif';
+      Chart.defaults.global.defaultFontColor = '#858796';
+
+      function number_format(number, decimals, dec_point, thousands_sep) {
+        // *     example: number_format(1234.56, 2, ',', ' ');
+        // *     return: '1 234,56'
+        number = (number + '').replace(',', '').replace(' ', '');
+        var n = !isFinite(+number) ? 0 : +number,
+          prec = !isFinite(+decimals) ? 0 : Math.abs(decimals),
+          sep = (typeof thousands_sep === 'undefined') ? ',' : thousands_sep,
+          dec = (typeof dec_point === 'undefined') ? '.' : dec_point,
+          s = '',
+          toFixedFix = function(n, prec) {
+            var k = Math.pow(10, prec);
+            return '' + Math.round(n * k) / k;
+          };
+        // Fix for IE parseFloat(0.55).toFixed(0) = 0;
+        s = (prec ? toFixedFix(n, prec) : '' + Math.round(n)).split('.');
+        if (s[0].length > 3) {
+          s[0] = s[0].replace(/\B(?=(?:\d{3})+(?!\d))/g, sep);
+        }
+        if ((s[1] || '').length < prec) {
+          s[1] = s[1] || '';
+          s[1] += new Array(prec - s[1].length + 1).join('0');
+        }
+        return s.join(dec);
+      }
+
+      var dataList = {{datas|tojson|safe}};
+      let labelData = [];
+      let valueData = [];
+      let coinData = [];
+      dataList.map((data) => {
+        let date = new Date(data.trade_time);
+        labelData.push(date.getFullYear()+'-'+(date.getMonth()+1)+'-'+date.getDate() +" " + date.getHours() + ':' +date.getMinutes())
+        valueData.push( data.trade_price);
+      })
+
+      // Area Chart Example
+      var ctx = document.getElementById("myAreaChart");
+      var myLineChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labelData,
+          datasets: [{
+            label: "Earnings",
+            lineTension: 0.3,
+            backgroundColor: "rgba(78, 115, 223, 0.05)",
+            borderColor: "rgba(78, 115, 223, 1)",
+            pointRadius: 3,
+            pointBackgroundColor: "rgba(78, 115, 223, 1)",
+            pointBorderColor: "rgba(78, 115, 223, 1)",
+            pointHoverRadius: 3,
+            pointHoverBackgroundColor: "rgba(78, 115, 223, 1)",
+            pointHoverBorderColor: "rgba(78, 115, 223, 1)",
+            pointHitRadius: 10,
+            pointBorderWidth: 2,
+            data: valueData,
+          }],
+        },
+        options: {
+          maintainAspectRatio: false,
+          layout: {
+            padding: {
+              left: 10,
+              right: 25,
+              top: 25,
+              bottom: 0
+            }
+          },
+          scales: {
+            xAxes: [{
+              time: {
+                unit: 'date'
+              },
+              gridLines: {
+                display: false,
+                drawBorder: false
+              },
+              ticks: {
+                maxTicksLimit: 7
+              }
+            }],
+            yAxes: [{
+              ticks: {
+                maxTicksLimit: 5,
+                padding: 10,
+                // Include a dollar sign in the ticks
+                callback: function(value, index, values) {
+                  return number_format(value) + 'won';
+                }
+              },
+              gridLines: {
+                color: "rgb(234, 236, 244)",
+                zeroLineColor: "rgb(234, 236, 244)",
+                drawBorder: false,
+                borderDash: [2],
+                zeroLineBorderDash: [2]
+              }
+            }],
+          },
+          legend: {
+            display: false
+          },
+          tooltips: {
+            backgroundColor: "rgb(255,255,255)",
+            bodyFontColor: "#858796",
+            titleMarginBottom: 10,
+            titleFontColor: '#6e707e',
+            titleFontSize: 14,
+            borderColor: '#dddfeb',
+            borderWidth: 1,
+            xPadding: 15,
+            yPadding: 15,
+            displayColors: false,
+            intersect: false,
+            mode: 'index',
+            caretPadding: 10,
+            callbacks: {
+              label: function(tooltipItem, chart) {
+                var datasetLabel = chart.datasets[tooltipItem.datasetIndex].label || '';
+                return '판매된 가격: ' + number_format(tooltipItem.yLabel) + "won";
+              }
+            }
+          }
+        }
+      });
+    </script>
+  </body>
+</html>

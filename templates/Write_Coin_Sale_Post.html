@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Write_Coin_Sale_Post</title>
+</head>
+<body>
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+          <script>
+              alert("{{messages[-1]}}")
+          </script>
+      {% endif %}
+  {% endwith %} 
+
+
+    <form name="form" method="POST" action="/write_coin_sale_post">
+        <h4>아이디 : <input type="text" name="sale_post_writer" value="{{session['member_id']}}" readonly/></h4>
+
+        <h4 style="color: green;">{{session['member_id']}}님이 보유한 코인의 개수 : {{user_info["coin_amount"]}}개</h4>
+        <h4 style="color: blue;">{{session['member_id']}}님이 보유한 남은 돈 : {{user_info["cash_amount"]}}원</h4>
+
+        <h4>판매글 제목 : <input type="text" name="sale_post_title" /></h4>
+
+        <h4>코인 판매 개수 : <input type="text" name="sale_post_coin_amount" /></h4>
+
+        <h4>>현재 시장에서 거래되는 코인의 가격 : {{market_cur_coin["cur_coin_price"]}}원</h4>
+
+        <h4>코인 판매 가격 : <input type="text" name="sale_post_coin_price" /></h4>
+
+        <h4><input type="submit" value="판매글 올리기"/></h4>
+    </form>
+    <br>
+    <a href="{{url_for('homepage')}}"><button>홈페이지로 가기</button></a>
+</body>
+</html>
