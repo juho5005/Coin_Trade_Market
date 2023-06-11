@@ -3,3 +3,5 @@ Dongguk Univ Coin market Service
 
 ### FrontEnd : HTML/CSS/JavaScript
 ### BackEnd : Python[Flask], NOSQL[MongoDB]
+
+<img src= 'https://ifh.cc/g/SzvPxz.png' alt='홈페이지'> 
