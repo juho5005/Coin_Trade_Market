@@ -3,8 +3,6 @@ Dongguk Univ Coin market Service
 
 ### User_Manual with Youtube : <a href="https://www.youtube.com/watch?v=td94KSLLEfo" target="_blank">https://www.youtube.com/watch?v=td94KSLLEfo</a>
 
-[페이지](https://www.youtube.com/watch?v=td94KSLLEfo){: target="_blank"}
-
 ### FrontEnd : HTML/CSS/JavaScript
 ### BackEnd : Python[Flask], NOSQL[MongoDB]
 
