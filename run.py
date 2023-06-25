@@ -1,496 +1,1159 @@
-# flask modules 
-from flask import Flask, redirect, url_for, request, \
-render_template, make_response, session, abort, flash
-import json
+import tensorflow
+import flask
+import urllib.request
+from PIL import Image, ImageOps
+import numpy as np
+import ast
+import mysql.connector
+import random
 
-# object_id(쿼리에 있는 _id의 자료형 변환)
-from bson.objectid import ObjectId
+# Use app with Flask Server
+app = flask.Flask(__name__)
 
-# set session time 
-from datetime import timedelta
-from datetime import datetime
-import time 
 
-# file module
-from werkzeug.utils import secure_filename 
+# Predefine first_class_names, first_model
+'''
+0 red
+1 green
+'''
+first_class_names = None
+first_model = None
 
-# pymongo
-import pymongo 
-from pymongo import MongoClient
+# Predefine second_class_names, second_model
+'''
+0 yellow
+1 blue
+'''
+second_class_names = None
+second_model = None
 
-import certifi
+# Predefine third_class_names, third_model
+'''
+0 red
+1 green
+2 yellow
+3 blue
+'''
+third_class_names = None
+third_model = None
 
-# Connect to MongoDB Cluster
-cluster = MongoClient("mongodb+srv://admin:dgu5005@cluster0.rmhq5as.mongodb.net/?retryWrites=true&w=majority",
-                      tlsCAFile=certifi.where())
-db = cluster["Software_Engineering_Coin_Market"]
+# Variables with Quiz 
+quiz_cnt = 0
+quiz_O = 0
+quiz_X = 0
 
-# "app"을 통해 Flask에 연결
-app = Flask(__name__)
+whole_quiz_cnt = 10
 
-# # flash(경고 문구)를 사용하기 위해서 설정
-app.config["SECRET_KEY"] = "Software_Engineering_Coin_Market"
 
-# session의 지속시간을 설정 
-app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=30)
+config = {
+    'user': 'cray7',
+    'password': 'dgu1234!',
+    'host': '43.200.153.107',
+    'port': '57223',
+    'database': 'cray7db'
+}
+conn = mysql.connector.connect(**config)
 
-# UTC시간을 바꿔주기 위함
-@app.template_filter("utc_time")
-def format_utctime(val) :
-    if val is None :
-        return ""
+
+# Main home page
+@app.route('/')
+def main():
+    return '안녕'
+
+
+# run first model
+def load_first_model():
+    global first_class_names, first_model
+
+    first_class_names = open('/workspace/final_test/Color_Detection_Names/first_labels.txt', 'r').readlines()
+    first_model = tensorflow.keras.models.load_model('/workspace/final_test/Color_Detection_Models/keras_first_model.h5', compile=False)
     
-    now_timestamp = time.time() # 클라이언트의 시간 
-    offset = datetime.fromtimestamp(now_timestamp)- datetime.utcfromtimestamp(now_timestamp)
 
-    val = datetime.fromtimestamp((int(val)/1000)) + offset 
+# first model api
+@app.route("/api/first/predict", methods=["POST"])
+def api_first_predict():
+    global type_dic
+    global first_class_names, first_model
 
-    return val.strftime("%Y-%m-%d %H:%M:%S")
-    
+    # UserRequest 중 발화를 req에 parsing.
+    req = flask.request.get_json()
+    req = req['userRequest']['utterance']
+    print(f'사용자의 발화가 들어왔을 때를 나타냄 : {req}')
 
-## 마켓에서 처음에 코인 100개를 넣어두는 코드
-## 마켓의 처음 코인 개수를 100개로 다시 돌리는 거
-# marketplace = db["MarketPlace"]
-# marketplace.update_one({"market_coin_id" : "MASTER_juho"}, {"$set" : {
-#     "cur_coin_amount" : 100,
-#     "cur_coin_price" : 100
-# }})
+    body = flask.request.get_json()
 
+    image_with_information = body['action']['params']['secureimage']
+    print(f"req['action']['params']['secureimage'] : {image_with_information}")
+    print()
 
-## 사용자의 코인개수를 0개로 바꿔주는 코드
-# member = db["Account_DB"]
-# member.update_one({'member_id' : 'juho'}, {"$set" : {
-#     "coin_amount" : 0,
-#     "cash_amount" : 0
-# }})
+    user_id = body['userRequest']['user']['id']
+    print(f"user_id : {user_id}")
+    print()
 
+    # 문자열로 바꿔주는 코드 (json 형식이라 필히 해야함)
+    image_urls = ast.literal_eval(image_with_information)
+    new_url = image_urls['secureUrls']
 
-# 첫 화면 [홈페이지] -> 시작점
-@app.route('/', methods=["GET", "POST"])
-def homepage() :
-    if request.method == "GET" :
-        # 코인가격의 흐름을 알아보기 위함
-        coin_price_flow = db["Coin_Price_Flow"]
-        datas = list(coin_price_flow.find({})) # 전체 데이터베이스를 다 가져옴
-        dataList = []
-        for item in datas:
-            del item['_id']
-        for item in datas:
-            dataList.append(json.dumps(item))
-        print(dataList)
+    saved_image_url = new_url[5:-1]
+    print(f"저장된 최종 이미지 url : {saved_image_url}")
+    print()
 
-        # 홈페이지의 코인 개수와 코인 가격을 알기 위함
-        marketplace = db["MarketPlace"]
-        market_cur_coin = marketplace.find_one({"market_coin_id" : 'MASTER_juho'})
+    np.set_printoptions(suppress=True)
+    data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
 
-        # 사용자의 session이 있을 때 코인과 현금의 양을 알기 위함
-        if session.get("member_id") :
-            Account = db["Account_DB"]
-            user_info = Account.find_one({"member_id" : session.get("member_id")})
-            return render_template('Coin_Market_Homepage.html', market_cur_coin=market_cur_coin, user_info=user_info, datas=datas)
+    # 'img'안에 saved_image_url을 넣어줌
+    urllib.request.urlretrieve(saved_image_url, 'img')
 
-        return render_template('Coin_Market_Homepage.html', market_cur_coin=market_cur_coin, datas=datas)
+    image = Image.open('img').convert('RGB')
+    size = (224, 224)
+    image = ImageOps.fit(image, size, Image.ANTIALIAS)
+    image_array = np.asarray(image)
+    normalized_image_array = (image_array.astype(np.float32) / 127.5) - 1
+    data[0] = normalized_image_array
 
-    elif request.method == "POST" :
-        # 코인가격의 흐름을 알아보기 위함
-        coin_price_flow = db["Coin_Price_Flow"]
-        datas = coin_price_flow.find({}) # 전체 데이터베이스를 다 가져옴
+    # 모델을 돌리는 곳 이게 좀 오래걸림
+    prediction = first_model.predict(data)
 
-        # 홈페이지의 코인 개수와 코인 가격을 알기 위함
-        marketplace = db["MarketPlace"]
-        market_cur_coin = marketplace.find_one({"market_coin_id" : 'MASTER_juho'})
+    # 가장 확률이 높은 인덱스를 찾아주는 것
+    index = np.argmax(prediction)
 
-        # 사용자의 session이 있을 때 코인과 현금의 양을 알기 위함
-        if session.get("member_id") :
-            Account = db["Account_DB"]
-            user_info = Account.find_one({"member_id" : session.get("member_id")})
+    # 가장 확률이 높은 색상을 (index)를 통해 class_name에 넣어주는 것
+    class_name = first_class_names[index]
+    confidence_score = round(prediction[0][index], 2)
 
-        deposit_amount = request.form['deposit_amount']
-        withdraw_amount = request.form['withdraw_amount']
+    print(f'빨간색 : {round(prediction[0][0] * 100, 2)}')
+    print(f'초록색 : {round(prediction[0][1] * 100, 2)}')
 
-        is_plus = False # 입금하는 경우 
-        is_minus = False # 출금하는 경우
+    print("Class : ", class_name[2:], end='')
+    print("Confidence Score : ", confidence_score)
+    print()
 
-        if deposit_amount == "" and withdraw_amount == "" : # 금액을 기입하지 않은 경우
-            flash("금액을 입력하지 않았습니다.")
-            return redirect(url_for('homepage'))
+    red_perc, green_perc = \
+    str(round(prediction[0][0] * 100, 2)), str(round(prediction[0][1] * 100, 2))
 
-        if deposit_amount == "" :
-            is_minus = True 
-            withdraw_amount = int(withdraw_amount)
-        else :
-            is_plus = True 
-            deposit_amount = int(deposit_amount)
-        
-        Account = db["Account_DB"]
-        user_info = Account.find_one({"member_id" : session.get("member_id")})
+    if str(class_name[2:]).strip() == 'red':
+        color = '빨간색'
+    elif str(class_name[2:]).strip() == 'green':
+        color = "초록색"
 
-        prev_cash = user_info["cash_amount"]
-                  
-        if is_plus : 
-            ADD = prev_cash + deposit_amount
-            Account.update_one({"member_id" : session.get("member_id")}, {"$set" : {"cash_amount" : ADD
-                }})
-        else :
-            MINUS = prev_cash - withdraw_amount
+    # 사용자가 어떤 색각이상 타입인지 확인
+    # 커서 시작
+    cursor = conn.cursor()
+    query = "SELECT * FROM user_type"
+    cursor.execute(query)
+    result = cursor.fetchall()
 
-            if MINUS < 0 :
-                flash(f"출금하고 싶은 금액보다 {-MINUS}원 보유한 금액이 적습니다.")
-                return redirect(url_for('homepage'))
-            Account.update_one({"member_id" : session.get("member_id")}, {"$set" : {
-                "cash_amount" : MINUS
-            }})
+    type_answer = ''
+    for r in result:
+        if r[0] == user_id:
+            type_answer = r[1]
+            break
 
-        return redirect(url_for('homepage'))
+    # 커서 시작
+    cursor = conn.cursor()
+    insert_query = "INSERT INTO quiz (user_id, type1, image, answer) VALUES (%s, %s, %s, %s)"
+    data = (user_id, type_answer, saved_image_url, color)
+    cursor.execute(insert_query, data)
+    conn.commit()
 
+    # 커서와 연결 종료
+    cursor.close()
 
-# 마켓에서 코인을 사고 팔 때
-@app.route('/coin_trade_market', methods=["GET", "POST"])
-def coin_trade_market() :
-    # 로그인이 안됐을 때 경고문과 함께 홈페이지로 돌아가게 만들어줌
-    if session.get("member_id") is None :
-        flash("로그인을 해야 마켓과 코인거래를 할 수 있습니다.")
-        return redirect(url_for('homepage'))
+    msg = color
+    print(msg)
 
-    # 홈페이지의 코인 개수와 코인 가격을 알기 위함
-    marketplace = db["MarketPlace"]
-    market_cur_coin = marketplace.find_one({"market_coin_id" : 'MASTER_juho'})
-
-
-    # 사용자의 정보를 이용하기 위함
-    Account = db["Account_DB"]
-    user_info = Account.find_one({"member_id" : session.get("member_id")})
-
-    # 코인가격의 흐름을 알아보기 위함
-    coin_price_flow = db["Coin_Price_Flow"]
-
-
-    if request.method == "POST" :
-        want_coin_amount = request.form.get("buy_coin_amount")
-
-        # 빈칸을 입력한 경우
-        if want_coin_amount == "" :
-            flash("아무것도 입력하지 않았습니다. 구매하고 싶은 코인의 개수를 입력해주세요.")
-            return redirect(url_for('homepage'))
-        
-        # 문자를 입력한 경우
-        if not want_coin_amount.isdigit() :
-            flash("문자를 입력했습니다. 구매하고 싶은 코인의 개수를 입력해주세요.")
-            return redirect(url_for('homepage'))
-
-
-        # 사용자가 구매하고 싶은 코인이 마켓이 보유한 코인의 개수보다 많을 때
-        if int(want_coin_amount) > market_cur_coin["cur_coin_amount"] : 
-            flash("마켓이 보유한 코인의 개수보다 더 많이 선택하셨습니다.")
-            return redirect(url_for('homepage'))
-        
-        # 사용자가 보유한 돈을 초과하는 경우
-
-        x = int(want_coin_amount) # 구매하고 싶은 코인 개수
-
-        a = market_cur_coin["cur_coin_amount"] # 마켓이 들고 있는 코인 개수
-        b = market_cur_coin["cur_coin_price"] # 현재 코인의 시세[가격]
-
-
-        c = user_info["cash_amount"] # 사용자가 가지고 있는 돈(원) 액수
-        d = user_info["coin_amount"] # 사용자가 가지고 있는 코인 개수
-
-        need_cash = x * b
-        have_cash = c
-        diff = have_cash - need_cash
-
-        if diff < 0 :
-            flash(f"보유한 돈보다 {-diff}원이 더 필요합니다 ")
-            return redirect(url_for('homepage'))
-        
-        else :
-            # 사용자의 코인과 현금의 개수 변동
-            Account.update_one({"member_id" : session.get("member_id")}, {"$set" : {
-                "coin_amount" : d+x,
-                "cash_amount" : diff
-            }})
-
-            # 마켓의 코인의 개수 변동
-            marketplace.update_one({"market_coin_id" : 'MASTER_juho'}, {"$set" : {
-                "cur_coin_amount" : a-x
-            }})
-
-            flash(f"코인 {x}개를 {need_cash}원에 구매했고 {diff}원 남았습니다.")
-
-
-            cur_utc_time = round(datetime.utcnow().timestamp() * 1000)
-            
-            result = {
-                "buy_id" : session.get("member_id"), # 코인을 산 id
-                "sell_id" : "marketplace", # 코인을 판 id (여기선 마켓플레이스)
-                "trade_amount" : x, # 코인 거래 개수
-                "trade_price" : b, # 코인 거래 가격
-                "trade_time" : cur_utc_time # 코인 거래 시간
-            }
-
-            coin_price_flow.insert_one(result)
-            return redirect(url_for('homepage'))
-
-
-    if session.get("member_id") :
-        return render_template('Coin_Trade_Market.html', market_cur_coin=market_cur_coin, user_info=user_info)
-
-
-
-
-# 회원가입 페이지
-@app.route('/sign_up_member', methods=["GET", "POST"])
-def sign_up_member() :
-    if session.get("member_id") : # 로그인이 된 상황일 때
-        flash("이미 로그인 된 상태입니다!")
-        return redirect(url_for("homepage"))
-
-    if request.method == "POST" :
-        member_id = request.form.get("sign_up_id", type=str)
-        member_pw = request.form.get("sign_up_pw", type=str)
-
-        if member_id == "" : 
-            flash("아이디를 입력하지 않았습니다.")
-            return render_template("Sign_Up_Member.html")
-        elif member_pw == "" :
-            flash("비밀번호를 입력하지 않았습니다.")
-            return render_template("Sign_Up_Member.html")
-
-        Accounts = db["Account_DB"]
-        print('여기')
-        member_num = Accounts.count_documents({"member_id" : member_id})
-        print(member_num)
-        if member_num > 0 :
-            flash("이미 존재하는 아이디입니다.")
-            return render_template("Sign_Up_Member.html")
-        
-        result = {
-            "member_id" : member_id,
-            "member_pw" : member_pw,
-            "coin_amount" : 0, # 갖고있는 코인 갯수를 0으로 
-            "cash_amount" : 0  # 갖고있는 현금을 0으로
+    # Basic Card Format
+    res = {
+        "version": "2.0",
+        "template": {
+            "outputs": [
+                {
+                    "basicCard": {
+                        "title": "판별 색깔 : " + msg,
+                        "description": "빨강색 : " + red_perc + '%\n' + "초록색 : " + green_perc + '%\n',
+                        "thumbnail": {
+                            "imageUrl": saved_image_url
+                        },
+                        "buttons": [
+                            {
+                                "action":  "webLink",
+                                "label": "전송한 사진 다시 보기",
+                                "webLinkUrl": saved_image_url
+                            }
+                        ]
+                    }
+                }
+            ]
         }
-        
-        Accounts.insert_one(result)
-        flash("회원가입이 완료됐습니다.")
-        return redirect(url_for("sign_in_member"))
-    
-    else :
-        return render_template("Sign_Up_Member.html")
-
-
-# 로그인 페이지 
-@app.route('/sign_in_member', methods=["GET", "POST"])
-def sign_in_member() :
-    if session.get("member_id") : # 로그인이 된 상황일 때
-        flash("이미 로그인 된 상태입니다!")
-        return redirect(url_for("homepage"))
-
-    if request.method == "POST" :
-        member_id = request.form.get("sign_in_id")
-        member_pw = request.form.get("sign_in_pw")
-
-        Accounts = db["Account_DB"]
-        print("여기")
-        data = Accounts.find_one({"member_id" : member_id})
-        print(data)
-        if data is None :
-            flash("가입되지 않은 회원정보입니다.")
-            return redirect(url_for("sign_in_member"))
-        
-        else :
-            if data.get("member_pw") == member_pw :
-                session["member_id"] = member_id 
-                session.permanent = True 
-                flash("로그인에 성공했습니다!")
-                return redirect(url_for('homepage'))
-            else :
-                flash("비밀번호가 일치하지 않습니다.")
-                return redirect(url_for("sign_in_member"))  
-                      
-    else :
-        return render_template("Sign_In_Member.html")
-
-
-# 로그아웃
-@app.route('/sign_out_member')
-def sign_out_member() :
-    # 로그인이 안됐을 때
-    if session.get("member_id") is None :
-        flash("로그인을 한 적이 없습니다.")
-        return redirect(url_for('sign_in_member'))
-
-    session.pop('member_id')
-    flash("로그아웃 됐습니다.")
-    return redirect(url_for('sign_in_member'))
-
-
-# 코인 판매 게시판
-@app.route('/coin_sale_list')
-def coin_sale_list() :
-    # 로그인이 안됐을 때 경고문과 함께 홈페이지로 돌아가게 만들어줌
-    if session.get("member_id") is None :
-        flash("로그인을 해야 판매 게시판에 들어갈 수 있습니다.")
-        return redirect(url_for('homepage'))
-    
-    # 판매글들을 다 보기 위함
-    Sale_Post = db["Sale_Post_DB"]
-    datas = Sale_Post.find({}) # 전체 데이터베이스를 다 가져옴
-
-    # 사용자의 정보를 이용하기 위함
-    Account = db["Account_DB"]
-    user_info = Account.find_one({"member_id" : session.get("member_id")})
-
-    return render_template('Coin_Trade_list.html', datas=list(datas), user_info=user_info)
-
-
-# 코인 판매 게시글 올리기
-@app.route('/write_coin_sale_post', methods=["GET", "POST"])
-def write_coin_sale_post() :
-    # 로그인이 안됐을 때 경고문과 함께 홈페이지로 돌아가게 만들어줌
-    if session.get("member_id") is None :
-        flash("로그인을 해야 판매 글을 작성할 수 있습니다.")
-        return redirect(url_for('homepage'))
-    
-    # 고객의 정보를 이용하기 위함
-    Account = db["Account_DB"]
-    user_info = Account.find_one({"member_id" : session.get("member_id")})
-
-    # 홈페이지의 코인 개수와 코인 가격을 알기 위함
-    marketplace = db["MarketPlace"]
-    market_cur_coin = marketplace.find_one({"market_coin_id" : 'MASTER_juho'})
-
-
-    # POST인 경우
-    if request.method == "POST" :
-        sale_post_writer = request.form.get("sale_post_writer") # 판매자 아이디
-        sale_post_title = request.form.get("sale_post_title") # 판매 글 제목
-        sale_post_coin_amount = request.form.get("sale_post_coin_amount") # 판매 코인 개수
-        sale_post_coin_price = request.form.get("sale_post_coin_price") # 판매 코인 가격 
-
-        # 만약 보유한 코인 보다 많은 코인을 파려고 게시글을 작성했을 때
-        if user_info["coin_amount"] < int(sale_post_coin_amount) :
-            flash("보유한 코인의 양보다 많은 양을 파려고 합니다!")
-            return redirect('write_coin_sale_post')
-
-        sale_post_datas = {
-            "sale_post_writer" : sale_post_writer,
-            "sale_post_title" : sale_post_title,
-            "sale_post_coin_amount" : sale_post_coin_amount,
-            "sale_post_coin_price" : sale_post_coin_price
-        }
-
-        # Database 중 "Sale_Post_DB" 칼럼 선택
-        Sale_Post = db["Sale_Post_DB"]
-
-        # "Sale_Post_DB"에 데이터 입력
-        x = Sale_Post.insert_one(sale_post_datas)
-        
-        return redirect(url_for('coin_sale_list'))
-        # return redirect(url_for("view_own_coin_sale_post", own_id=x.inserted_id))
-
-    # GET인 경우
-    else :
-        return render_template('Write_Coin_Sale_Post.html', user_info=user_info, market_cur_coin=market_cur_coin)
-
-
-# 코인 판매 글이 조건에 부합하는가 판단 후 적었던 내용들을 표시
-# 조건에 부합하지 않는다면 오류 메세지 후 작성칸으로 다시 가기
-@app.route('/view_own_coin_sale_post/<own_id>') 
-def view_own_coin_sale_post(own_id) :
-    if own_id is not None :
-        Sale_Post = db["Sale_Post_DB"]
-        data = Sale_Post.find_one({"_id" : ObjectId(own_id)})
-
-        if data is not None :
-            need_money = int(data.get("sale_post_coin_amount")) * int(data.get("sale_post_coin_price"))
-            result = {
-                "sale_post_own_id" : data.get("_id"),
-                "sale_post_writer" : data.get("sale_post_writer"),
-                "sale_post_title" : data.get("sale_post_title"),
-                "sale_post_coin_amount" : int(data.get("sale_post_coin_amount")),
-                "sale_post_coin_price" : data.get("sale_post_coin_price"),
-                "need_money" : need_money
-            }
-            # 홈페이지의 코인 개수와 코인 가격을 알기 위함
-            marketplace = db["MarketPlace"]
-            market_cur_coin = marketplace.find_one({"market_coin_id" : 'MASTER_juho'})
-
-            # 사용자의 정보를 이용하기 위함
-            Account = db["Account_DB"]
-            user_info = Account.find_one({"member_id" : session.get("member_id")})
-            
-            return render_template("View_Own_Coin_Sale_Post.html",result=result, user_info=user_info, market_cur_coin=market_cur_coin)
-    return abort(404)
-
-
-# 코인 거래가 끝나고 해당 판매 게시글을 삭제 하고
-# 사용자와 판매자 간의 코인의 수, 남은 돈의 액수를 변경
-@app.route('/delete_data_change/<seller_own_id>')
-def delete_data_change(seller_own_id) :
-    sale_post_DB = db["Sale_Post_DB"]
-    data = sale_post_DB.find_one({"_id" : ObjectId(seller_own_id)}) # 판매자 글의 정보를 받아옴
-    
-    seller = data["sale_post_writer"] # 판매자의 아이디
-    seller_minus_coin = data["sale_post_coin_amount"] # 판매자가 코인을 팔아서 줄어들 코인 개수
-    seller_plus_coin = data["sale_post_coin_price"] # 판매자가 코인을 팔아서 늘어날 돈의 개수
-
-    # 판매자가 판 코인의 개수만큼 판매자의 코인 개수를 줄여줌
-    account_DB = db["Account_DB"]
-    member = account_DB.find_one({"member_id" : seller})
-
-    # 1) 코인 개수 감소
-    x = int(member["coin_amount"]) - int(data["sale_post_coin_amount"])
-
-    # 2) 잔액의 증가
-    y = int(member["cash_amount"]) + (int(data["sale_post_coin_price"]) * int(data["sale_post_coin_amount"]))
-
-    # 1,2 번을 실제 DB에 적용시켜줌
-    account_DB.update_one({"member_id" : seller}, {"$set" : {
-        "coin_amount" : x,
-        "cash_amount" : y
-    }})
-
-    # 구매자의 정보도 수정해야함
-    buyer_id = session.get("member_id")
-    buyer = account_DB.find_one({'member_id' : buyer_id})
-
-    # 1) 코인 개수 증가
-    q = int(buyer["coin_amount"]) + int(data["sale_post_coin_amount"])
-    # 2) 잔액의 감소
-    w = int(buyer["cash_amount"]) - (int(data["sale_post_coin_price"]) * int(data["sale_post_coin_amount"]))
-
-    account_DB.update_many({"member_id" : buyer_id}, {"$set" : {
-        "coin_amount" : q,
-        "cash_amount" : w
-    }})
-
-
-    # 그리고, 거래일지DB에도 추가시켜준다.
-    coin_price_flow = db["Coin_Price_Flow"]
-    cur_utc_time = round(datetime.utcnow().timestamp() * 1000) # utc 시간을 위함
-    result = {
-        "buy_id" : buyer_id, # 코인을 산 id
-        "sell_id" : seller, # 코인을 판 id (여기선 마켓플레이스)
-        "trade_amount" : int(data["sale_post_coin_amount"]), # 코인 거래 개수
-        "trade_price" : int(data["sale_post_coin_price"]), # 코인 거래 가격
-        "trade_time" : cur_utc_time # 코인 거래 시간
     }
-    coin_price_flow.insert_one(result)
-
-    # 현재 코인의 시세또한 바꿔준다.
-    marketplace = db["MarketPlace"]
-    marketplace.update_one({"market_coin_id" : "MASTER_juho"}, {"$set" : {
-        "cur_coin_price" : int(data["sale_post_coin_price"]) 
-    }})
-
-    # 그리고, 판매 글도 거래됐으므로 지워준다.
-    flash("거래가 완료됐습니다!")
-    sale_post_DB.delete_one({"sale_post_writer" : seller})
-
-    return redirect(url_for('homepage'))
+    print(res)
+    return flask.jsonify(res)
 
 
-# Main code
-if __name__ == "__main__" :
-    app.run(host="0.0.0.0", port=8000, debug=True)
+# run second model
+def load_second_model():
+    global second_class_names, second_model
+
+    second_class_names = open('/workspace/final_test/Color_Detection_Names/second_labels.txt', 'r').readlines()
+    second_model = tensorflow.keras.models.load_model('/workspace/final_test/Color_Detection_Models/keras_second_model.h5', compile=False)
+    
+    
+# second model api
+@app.route("/api/second/predict", methods=["POST"])
+def api_second_predict():
+    global second_class_names, second_model
+
+    # UserRequest 중 발화를 req에 parsing.
+    req = flask.request.get_json()
+    req = req['userRequest']['utterance']
+    print(f'사용자의 발화가 들어왔을 때를 나타냄 : {req}')
+
+    body = flask.request.get_json()
+
+    image_with_information = body['action']['params']['secureimage']
+    print(f"req['action']['params']['secureimage'] : {image_with_information}")
+    print()
+
+    user_id = body['userRequest']['user']['id']
+    print(f"user_id : {user_id}")
+    print()
+
+    # 문자열로 바꿔주는 코드 (json 형식이라 필히 해야함)
+    image_urls = ast.literal_eval(image_with_information)
+    new_url = image_urls['secureUrls']
+
+    saved_image_url = new_url[5:-1]
+    print(f"저장된 최종 이미지 url : {saved_image_url}")
+    print()
+
+    np.set_printoptions(suppress=True)
+    data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
+
+    # 'img'안에 saved_image_url을 넣어줌
+    urllib.request.urlretrieve(saved_image_url, 'img')
+
+    image = Image.open('img').convert('RGB')
+    size = (224, 224)
+    image = ImageOps.fit(image, size, Image.ANTIALIAS)
+    image_array = np.asarray(image)
+    normalized_image_array = (image_array.astype(np.float32) / 127.5) - 1
+    data[0] = normalized_image_array
+
+    # 모델을 돌리는 곳 이게 좀 오래걸림
+    prediction = second_model.predict(data)
+
+    # 가장 확률이 높은 인덱스를 찾아주는 것
+    index = np.argmax(prediction)
+
+    # 가장 확률이 높은 색상을 (index)를 통해 class_name에 넣어주는 것
+    class_name = second_class_names[index]
+    confidence_score = round(prediction[0][index], 2)
+
+    print(f'황색 : {round(prediction[0][0] * 100, 2)}')
+    print(f'청색 : {round(prediction[0][1] * 100, 2)}')
+
+    print("Class : ", class_name[2:], end='')
+    print("Confidence Score : ", confidence_score)
+    print()
+
+    yellow_perc, blue_perc = \
+    str(round(prediction[0][0] * 100, 2)), str(round(prediction[0][1] * 100, 2))
+
+    if str(class_name[2:]).strip() == 'yellow':
+        color = '황색'
+    elif str(class_name[2:]).strip() == 'blue':
+        color = "청색"
+
+    # 사용자가 어떤 색각이상 타입인지 확인
+    # 커서 시작
+    cursor = conn.cursor()
+    query = "SELECT * FROM user_type"
+    cursor.execute(query)
+    result = cursor.fetchall()
+
+    type_answer = ''
+    for r in result:
+        if r[0] == user_id:
+            type_answer = r[1]
+            break
+
+    # 커서 시작
+    cursor = conn.cursor()
+    insert_query = "INSERT INTO quiz (user_id, type1, image, answer) VALUES (%s, %s, %s, %s)"
+    data = (user_id, type_answer, saved_image_url, color)
+    cursor.execute(insert_query, data)
+    conn.commit()
+
+    # 커서와 연결 종료
+    cursor.close()
+
+    msg = color
+    print(msg)
+
+    # Basic Card Format
+    res = {
+        "version": "2.0",
+        "template": {
+            "outputs": [
+                {
+                    "basicCard": {
+                        "title": "판별 색깔 : " + msg,
+                        "description": "황색 : " + yellow_perc + '%\n' + "청색 : " + blue_perc + '%\n',
+                        "thumbnail": {
+                            "imageUrl": saved_image_url
+                        },
+                        "buttons": [
+                            {
+                                "action":  "webLink",
+                                "label": "전송한 사진 다시 보기",
+                                "webLinkUrl": saved_image_url
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+    print(res)
+    return flask.jsonify(res)
+
+
+# run third model
+def load_third_model():
+    global third_class_names, third_model
+
+    third_class_names = open('/workspace/final_test/Color_Detection_Names/third_labels.txt', 'r').readlines()
+    third_model = tensorflow.keras.models.load_model('/workspace/final_test/Color_Detection_Models/keras_third_model.h5', compile=False)
+
+
+# third model api
+@app.route("/api/third/predict", methods=["POST"])
+def api_third_predict():
+    global third_class_names, third_model
+
+    # UserRequest 중 발화를 req에 parsing.
+    req = flask.request.get_json()
+    req = req['userRequest']['utterance']
+    print(f'사용자의 발화가 들어왔을 때를 나타냄 : {req}')
+
+    body = flask.request.get_json()
+
+    image_with_information = body['action']['params']['secureimage']
+    print(f"req['action']['params']['secureimage'] : {image_with_information}")
+    print()
+
+    user_id = body['userRequest']['user']['id']
+    print(f"user_id : {user_id}")
+    print()
+
+    # 문자열로 바꿔주는 코드 (json 형식이라 필히 해야함)
+    image_urls = ast.literal_eval(image_with_information)
+    new_url = image_urls['secureUrls']
+
+    saved_image_url = new_url[5:-1]
+    print(f"저장된 최종 이미지 url : {saved_image_url}")
+    print()
+
+    np.set_printoptions(suppress=True)
+    data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
+
+    # 'img'안에 saved_image_url을 넣어줌
+    urllib.request.urlretrieve(saved_image_url, 'img')
+
+    image = Image.open('img').convert('RGB')
+    size = (224, 224)
+    image = ImageOps.fit(image, size, Image.ANTIALIAS)
+    image_array = np.asarray(image)
+    normalized_image_array = (image_array.astype(np.float32) / 127.5) - 1
+    data[0] = normalized_image_array
+
+    # 모델을 돌리는 곳 이게 좀 오래걸림
+    prediction = third_model.predict(data)
+
+    # 가장 확률이 높은 인덱스를 찾아주는 것
+    index = np.argmax(prediction)
+
+    # 가장 확률이 높은 색상을 (index)를 통해 class_name에 넣어주는 것
+    class_name = third_class_names[index]
+    confidence_score = round(prediction[0][index], 2)
+
+    print(f'빨간색 : {round(prediction[0][0] * 100, 2)}')
+    print(f'초록색 : {round(prediction[0][1] * 100, 2)}')
+    print(f'황색 : {round(prediction[0][2] * 100, 2)}')
+    print(f'청색 : {round(prediction[0][3] * 100, 2)}')
+
+    print("Class : ", class_name[2:], end='')
+    print("Confidence Score : ", confidence_score)
+    print()
+
+    red_perc, green_perc, yellow_perc, blue_perc = \
+    str(round(prediction[0][0] * 100, 2)), str(round(prediction[0][1] * 100, 2)),\
+        str(round(prediction[0][2] * 100, 2)), str(round(prediction[0][3] * 100, 2))
+
+    if str(class_name[2:]).strip() == 'blue':
+        color = '청색'
+    elif str(class_name[2:]).strip() == 'red':
+        color = '빨간색'
+    elif str(class_name[2:]).strip() == 'green':
+        color = "초록색"
+    else:
+        color = "황색"
+        
+    # 사용자가 어떤 색각이상 타입인지 확인
+    # 커서 시작
+    cursor = conn.cursor()
+    query = "SELECT * FROM user_type"
+    cursor.execute(query)
+    result = cursor.fetchall()
+
+    type_answer = ''
+    for r in result:
+        if r[0] == user_id:
+            type_answer = r[1]
+            break
+
+    # 커서 시작
+    cursor = conn.cursor()
+    insert_query = "INSERT INTO quiz (user_id, type1, image, answer) VALUES (%s, %s, %s, %s)"
+    data = (user_id, type_answer, saved_image_url, color)
+    cursor.execute(insert_query, data)
+    conn.commit()
+
+    # 커서와 연결 종료
+    cursor.close()
+
+    msg = color
+    print(msg)
+
+    # Basic Card Format
+    res = {
+        "version": "2.0",
+        "template": {
+            "outputs": [
+                {
+                    "basicCard": {
+                        "title": "판별 색깔 : " + msg,
+                        "description": "빨강색 : " + red_perc + '%\n' + "초록색 : " + green_perc + '%\n' + "황색 : " + yellow_perc + '%\n' + "청색 : " + blue_perc + '%\n',
+                        "thumbnail": {
+                            "imageUrl": saved_image_url
+                        },
+                        "buttons": [
+                            {
+                                "action":  "webLink",
+                                "label": "전송한 사진 다시 보기",
+                                "webLinkUrl": saved_image_url
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+    print(res)
+    return flask.jsonify(res)
+
+
+# Quiz
+@app.route("/quiz", methods=["POST"])
+def quiz():
+    global quiz_cnt, quiz_O, quiz_X, whole_quiz_cnt
+
+    # UserRequest 중 발화를 req에 parsing.
+    req = flask.request.get_json()
+    user_id = req['userRequest']['user']['id']
+    print(f'사용자 아이디 : {user_id}')
+
+    speak = req['userRequest']['utterance']
+    print(f'사용자의 발화가 들어왔을 때를 나타냄 : {speak}')
+
+    if '정답' in speak:
+        quiz_cnt += 1
+        quiz_O += 1
+
+    elif '오답' in speak:
+        quiz_cnt += 1
+        quiz_X += 1
+
+    # When quiz is finished
+    if quiz_cnt == whole_quiz_cnt:
+        quiz_cnt = 0
+        correct = quiz_O
+        quiz_O = 0
+        wrong = quiz_X
+        quiz_X = 0
+
+        # Basic Card Format
+        res = {
+            "version": "2.0",
+            "template": {
+            "outputs": [
+                {
+                "basicCard": {
+                "title": f"{whole_quiz_cnt}문제 중 {correct}개 맞추셨습니다.",
+                "description": f"사용자님의 틀린 {wrong}개의 사진의 가중치가 올라가서 다음번에 다시 출제됩니다.",
+                "thumbnail": {
+                    "imageUrl": 'https://blog.amazingtalker.com/wp-content/uploads/2022/09/Congrats-1024x683.jpg'
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+
+        # Start of Cursor
+        cursor = conn.cursor()
+        insert_query = "INSERT INTO quiz_history (user_id, correct, wrong) VALUES (%s, %s, %s)"
+        data = (user_id, correct, wrong)
+        cursor.execute(insert_query, data)
+        conn.commit()
+
+        # Termination of Cursor
+        cursor.close()
+
+        return flask.jsonify(res)
+
+    # 사용자가 어떤 색각이상 유형인지 파악
+    # 커서 시작
+    cursor = conn.cursor()
+    query = "SELECT * FROM user_type"
+    cursor.execute(query)
+
+    result = cursor.fetchall()
+
+    color_type = ''
+    for r in result:
+        if r[0] == user_id:
+            color_type = r[1]
+
+    # 사용자의 색각이상 유형이 정의되지않았다면
+    if color_type == '':
+        print("사용자의 색각이상이 정의되지 않은 경우")
+        res = {
+            "version": "2.0",
+            "template": {
+                "outputs": [
+                    {
+                        "simpleText": {
+                            "text": f"사용자의 색각 이상 유형이 정의되지 않았습니다. 색각이상 TEST에서 색각이상유형을 등록해주세요!"
+                        }
+                    }
+                ]
+            }
+        }
+        # 커서와 연결 종료
+        cursor.close()
+        return res
+
+    print(f'사용자의 색각이상은 {color_type}입니다')
+
+    if (color_type == '녹색맹') or (color_type == '적색맹'):
+        final_ans = ''
+        query1 = "SELECT * FROM red"
+        cursor.execute(query1)
+
+        result1 = cursor.fetchall()
+
+        query2 = "SELECT * FROM green"
+        cursor.execute(query2)
+
+        result2 = cursor.fetchall()
+
+        # 빨간색 고를지 초록색 고를지
+        color_num = random.randint(1, 2)
+
+        # 빨간색으로 퀴즈 내기
+        if color_num == 1:
+            img_link = ''
+            cnt1 = 0
+            for r in result1:
+                cnt1 += 1
+            img_idx = random.randint(0, cnt1-1)
+            img_link = result1[img_idx][1]
+            final_ans = '빨간색'
+
+        # 초록색으로 퀴즈 내기
+        else:
+            img_link = ''
+            cnt2 = 0
+            for r in result2:
+                cnt2 += 1
+            img_idx = random.randint(0, cnt2-1)
+            img_link = result2[img_idx][1]
+            final_ans = '초록색'
+
+        # 커서와 연결 종료
+        cursor.close()
+
+        if final_ans == '빨간색':
+            # Basic Card Format (빨간색인 경우)
+            res = {
+                "version": "2.0",
+                "template": {
+                "outputs": [
+                    {
+                    "basicCard": {
+                    "title": f"{whole_quiz_cnt}문제 중 {quiz_cnt+1}번째 문제입니다." + "\n" + "위 사진의 색깔을 맞춰보세요!",
+                    "description": "빨강색 / 초록색",
+                    "thumbnail": {
+                        "imageUrl": img_link
+                        },
+                    "buttons": [
+                        {
+                        "action": "message",
+                        "label": "빨간색",
+                        "messageText": f"답은 {final_ans}입니다. 정답입니다!"
+                            },
+                        {
+                        "action": "message",
+                        "label": "초록색",
+                        "messageText": f"답은 {final_ans}입니다. 오답입니다!"
+                            }
+                        ]
+                        }
+                    }
+                ]
+            }
+            }
+        else:
+            # Basic Card Format (초록색인 경우)
+            res = {
+            "version": "2.0",
+            "template": {
+                "outputs": [
+                {
+                    "basicCard": {
+                    "title": f"{whole_quiz_cnt}문제 중 {quiz_cnt+1}번째 문제입니다." + "\n" + "위 사진의 색깔을 맞춰보세요!",
+                    "description": "빨강색 / 초록색",
+                    "thumbnail": {
+                        "imageUrl": img_link
+                    },
+                    "buttons": [
+                        {
+                        "action": "message",
+                        "label": "빨간색",
+                        "messageText": f"답은 {final_ans}입니다. 오답입니다!"
+                        },
+                        {
+                        "action": "message",
+                        "label": "초록색",
+                        "messageText": f"답은 {final_ans}입니다. 정답입니다!"
+                        }
+                    ]
+                    }
+                }
+                ]
+            }
+            }
+        return flask.jsonify(res)
+
+
+    elif color_type == '황청색맹':
+        final_ans = ''
+        query1 = "SELECT * FROM brown"
+        cursor.execute(query1)
+
+        result3 = cursor.fetchall()
+
+        query2 = "SELECT * FROM blue"
+        cursor.execute(query2)
+
+        result4 = cursor.fetchall()
+
+        # 황색 고를지, 청색 고를지
+        color_num = random.randint(1, 2)
+
+        # 황색으로 퀴즈 내기
+        if color_num == 1:
+            img_link = ''
+            cnt3 = 0
+            for r in result3:
+                cnt3 += 1
+            img_idx = random.randint(0, cnt3)
+            img_link = result3[img_idx][1]
+            final_ans = '황색'
+
+        # 청색으로 퀴즈 내기
+        else:
+            img_link = ''
+            cnt4 = 0
+            for r in result4:
+                cnt4 += 1
+            img_idx = random.randint(0, cnt4)
+            img_link = result4[img_idx][1]
+            final_ans = '청색'
+
+        # 커서와 연결 종료
+        cursor.close()
+
+        if final_ans == '황색':
+            # Basic Card Format (황색인 경우)
+            res = {
+            "version": "2.0",
+            "template": {
+                "outputs": [
+                {
+                    "basicCard": {
+                    "title": f"{whole_quiz_cnt}문제 중 {quiz_cnt+1}번째 문제입니다." + "\n" + "위 사진의 색깔을 맞춰보세요!",
+                    "description": "황색 / 청색",
+                    "thumbnail": {
+                        "imageUrl": img_link
+                    },
+                    "buttons": [
+                        {
+                            "action": "message",
+                            "label": "황색",
+                            "messageText": f"답은 {final_ans}입니다. 정답입니다!"
+                        },
+                        {
+                            "action": "message",
+                            "label": "청색",
+                            "messageText": f"답은 {final_ans}입니다. 오답입니다!"
+                        }
+                    ]
+                    }
+                }
+                ]
+            }
+            }
+        else:
+            # Basic Card Format (청색인 경우)
+            res = {
+                "version": "2.0",
+                "template": {
+                    "outputs": [
+                    {
+                        "basicCard": {
+                        "title": f"{whole_quiz_cnt}문제 중 {quiz_cnt+1}번째 문제입니다." + "\n" + "위 사진의 색깔을 맞춰보세요!",
+                        "description": "황색 / 청색",
+                        "thumbnail": {
+                        "imageUrl": img_link
+                        },
+                    "buttons": [
+                        {
+                            "action": "message",
+                            "label": "황색",
+                            "messageText": f"답은 {final_ans}입니다. 오답입니다!"
+                        },
+                        {
+                            "action": "message",
+                            "label": "청색",
+                            "messageText": f"답은 {final_ans}입니다. 정답입니다!"
+                        }
+                    ]
+                    }
+                }
+                ]
+            }
+            }
+        return flask.jsonify(res)
+
+
+    # 전색맹인 경우
+    else:
+        final_ans = ''
+
+        query1 = "SELECT * FROM red"
+        cursor.execute(query1)
+
+        result5 = cursor.fetchall()
+
+        query2 = "SELECT * FROM green"
+        cursor.execute(query2)
+
+        result6 = cursor.fetchall()
+
+        query3 = "SELECT * FROM brown"
+        cursor.execute(query3)
+
+        result7 = cursor.fetchall()
+
+        query4 = "SELECT * FROM blue"
+        cursor.execute(query4)
+
+        result8 = cursor.fetchall()
+
+        
+        # 빨, 초, 황, 청 뭘 고를지 고민
+        color_num = random.randint(1, 4)
+
+        # 빨간색으로 퀴즈 내기
+        if color_num == 1:
+            img_link = ''
+            cnt5 = 0
+            for r in result5:
+                cnt5 += 1
+            img_idx = random.randint(0, cnt5)
+            img_link = result5[img_idx][1]
+            final_ans = '빨간색'
+
+        # 초록색으로 퀴즈 내기
+        elif color_num == 2:
+            img_link = ''
+            cnt6 = 0
+            for r in result6:
+                cnt6 += 1
+            img_idx = random.randint(0, cnt6)
+            img_link = result6[img_idx][1]
+            final_ans = '초록색'
+
+        # 황색으로 퀴즈 내기
+        elif color_num == 3:
+            img_link = ''
+            cnt7 = 0
+            for r in result7:
+                cnt7 += 1
+            img_idx = random.randint(0, cnt7)
+            img_link = result7[img_idx][1]
+            final_ans = '황색'
+
+        # 청색으로 퀴즈 내기
+        else :
+            img_link = ''
+            cnt8 = 0
+            for r in result8:
+                cnt8 += 1
+            img_idx = random.randint(0, cnt8)
+            img_link = result8[img_idx][1]
+            final_ans = '청색'
+
+        # 커서와 연결 종료
+        cursor.close()
+
+        # 답이 빨간색인 경우
+        if final_ans == '빨간색':
+            # Basic Card Format (빨간인 경우)
+            res = {
+                "version": "2.0",
+                "template": {
+                "outputs": [
+                    {
+                        "carousel": {
+                        "type": "basicCard",
+                        "items": [
+                            {
+                            "title": f"{whole_quiz_cnt}문제 중 {quiz_cnt+1}번째 문제입니다." + "\n" + "위 사진의 색깔을 맞춰보세요!",
+                            "description": "빨강색 / 초록색",
+                            "thumbnail": {
+                            "imageUrl": img_link
+                            },
+                            "buttons": [
+                                {
+                                "action": "message",
+                                "label": "빨간색",
+                                "messageText": f"답은 {final_ans}입니다. 정답입니다!"
+                                },
+                                {
+                                "action": "message",
+                                "label": "초록색",
+                                "messageText": f"답은 {final_ans}입니다. 오답입니다!"
+                                }
+                        ]
+                        },
+                        {
+                            "title": f"{whole_quiz_cnt}문제 중 {quiz_cnt+1}번째 문제입니다." + "\n" + "위 사진의 색깔을 맞춰보세요!",
+                            "description": "황색 / 청색",
+                            "thumbnail": {
+                            "imageUrl": img_link
+                                },
+                            "buttons": [
+                                {
+                                "action": "message",
+                                "label": "황색",
+                                "messageText": f"답은 {final_ans}입니다. 오답입니다!"
+                                },
+                                {
+                                "action": "message",
+                                "label": "청색",
+                                "messageText": f"답은 {final_ans}입니다. 오답입니다!"
+                                }
+                        ]
+                        }
+                    ]
+                    }
+                }
+                ]
+            }
+        }
+
+        # 답이 초록색인 경우
+        elif final_ans == '초록색':
+            # Basic Card Format (빨간인 경우)
+            res = {
+                "version": "2.0",
+                "template": {
+                    "outputs": [
+                    {
+                        "carousel": {
+                        "type": "basicCard",
+                        "items": [
+                            {
+                            "title": f"{whole_quiz_cnt}문제 중 {quiz_cnt+1}번째 문제입니다." + "\n" + "위 사진의 색깔을 맞춰보세요!",
+                            "description": "빨강색 / 초록색",
+                            "thumbnail": {
+                                "imageUrl": img_link
+                            },
+                            "buttons": [
+                                {
+                                "action": "message",
+                                "label": "빨간색",
+                                "messageText": f"답은 {final_ans}입니다. 오답입니다!"
+                                },
+                                {
+                                "action": "message",
+                                "label": "초록색",
+                                "messageText": f"답은 {final_ans}입니다. 정답입니다!"
+                                }
+                            ]
+                            },
+                            {
+                            "title": f"{whole_quiz_cnt}문제 중 {quiz_cnt+1}번째 문제입니다." + "\n" + "위 사진의 색깔을 맞춰보세요!",
+                            "description": "황색 / 청색",
+                            "thumbnail": {
+                                "imageUrl": img_link
+                            },
+                            "buttons": [
+                                {
+                                "action": "message",
+                                "label": "황색",
+                                "messageText": f"답은 {final_ans}입니다. 오답입니다!"
+                                },
+                                {
+                                "action": "message",
+                                "label": "청색",
+                                "messageText": f"답은 {final_ans}입니다. 오답입니다!"
+                                }
+                            ]
+                            }
+                        ]
+                        }
+                    }
+                    ]
+                }
+                }
+
+        # 답이 황색인 경우
+        elif final_ans == '황색':
+            # Basic Card Format (빨간인 경우)
+            res = {
+                "version": "2.0",
+                "template": {
+                    "outputs": [
+                    {
+                        "carousel": {
+                        "type": "basicCard",
+                        "items": [
+                            {
+                            "title": f"{whole_quiz_cnt}문제 중 {quiz_cnt+1}번째 문제입니다." + "\n" + "위 사진의 색깔을 맞춰보세요!",
+                            "description": "빨강색 / 초록색",
+                            "thumbnail": {
+                                "imageUrl": img_link
+                            },
+                            "buttons": [
+                                {
+                                "action": "message",
+                                "label": "빨간색",
+                                "messageText": f"답은 {final_ans}입니다. 오답입니다!"
+                                },
+                                {
+                                "action": "message",
+                                "label": "초록색",
+                                "messageText": f"답은 {final_ans}입니다. 오답입니다!"
+                                }
+                            ]
+                            },
+                            {
+                            "title": f"{whole_quiz_cnt}문제 중 {quiz_cnt+1}번째 문제입니다." + "\n" + "위 사진의 색깔을 맞춰보세요!",
+                            "description": "황색 / 청색",
+                            "thumbnail": {
+                                "imageUrl": img_link
+                            },
+                            "buttons": [
+                                {
+                                "action": "message",
+                                "label": "황색",
+                                "messageText": f"답은 {final_ans}입니다. 정답입니다!"
+                                },
+                                {
+                                "action": "message",
+                                "label": "청색",
+                                "messageText": f"답은 {final_ans}입니다. 오답입니다!"
+                                }
+                            ]
+                            }
+                        ]
+                        }
+                    }
+                    ]
+                }
+                }
+
+        # 답이 청색인 경우
+        else:
+            # Basic Card Format (빨간인 경우)
+            res = {
+                "version": "2.0",
+                "template": {
+                    "outputs": [
+                    {
+                        "carousel": {
+                        "type": "basicCard",
+                        "items": [
+                            {
+                            "title": f"{whole_quiz_cnt}문제 중 {quiz_cnt+1}번째 문제입니다." + "\n" + "위 사진의 색깔을 맞춰보세요!",
+                            "description": "빨강색 / 초록색",
+                            "thumbnail": {
+                                "imageUrl": img_link
+                            },
+                            "buttons": [
+                                {
+                                "action": "message",
+                                "label": "빨간색",
+                                "messageText": f"답은 {final_ans}입니다. 오답입니다!"
+                                },
+                                {
+                                "action": "message",
+                                "label": "초록색",
+                                "messageText": f"답은 {final_ans}입니다. 오답입니다!"
+                                }
+                            ]
+                            },
+                            {
+                            "title": f"{whole_quiz_cnt}문제 중 {quiz_cnt+1}번째 문제입니다." + "\n" + "위 사진의 색깔을 맞춰보세요!",
+                            "description": "황색 / 청색",
+                            "thumbnail": {
+                                "imageUrl": img_link
+                            },
+                            "buttons": [
+                                {
+                                "action": "message",
+                                "label": "황색",
+                                "messageText": f"답은 {final_ans}입니다. 오답입니다!"
+                                },
+                                {
+                                "action": "message",
+                                "label": "청색",
+                                "messageText": f"답은 {final_ans}입니다. 정답입니다!"
+                                }
+                            ]
+                            }
+                        ]
+                        }
+                    }
+                    ]
+                }
+            }
+        return flask.jsonify(res)
+
+
+# 사용자가 어떤 색각이상자인지 저장
+@app.route("/problem", methods=["POST"])
+def problem():
+    # UserRequest 중 발화를 req에 parsing.
+    req = flask.request.get_json()
+    user_id = req['userRequest']['user']['id']
+    print(f'사용자의 아이디 {user_id}')
+
+    contents = req['userRequest']['utterance']
+    print(f'사용자의 발화가 들어왔을 때를 나타냄 : {contents}')
+
+    if contents == '아니요, 잘 돼요':
+        res = {
+            "version": "2.0",
+            "template": {
+                "outputs": [
+                    {
+                        "simpleText": {
+                            "text": f"사용자님은 정상입니다!"
+                        }
+                    }
+                ]
+            }
+        }
+        return res
+
+    type_ans = ''
+    degree = ''
+    if '(T)' == contents[-3:]:
+        type_ans = '황청색맹'
+        if 'Strong' == contents[:-3] :
+            degree = 'Strong'
+        elif 'Moderate' == contents[:-3] :
+            degree = 'Moderate'
+        else :
+            degree = 'Mild'
+    elif '(A)' == contents[-3:]:
+        type_ans = '전색맹'
+        if 'Strong' == contents[:-3] :
+            degree = 'Strong'
+        elif 'Moderate' == contents[:-3] :
+            degree = 'Moderate'
+        else :
+            degree = 'Mild'
+    elif '(P)' == contents[-3:]:
+        type_ans = '적색맹'
+        if 'Strong' == contents[:-3] :
+            degree = 'Strong'
+        elif 'Moderate' == contents[:-3] :
+            degree = 'Moderate'
+        else :
+            degree = 'Mild'
+    else :
+        type_ans = '녹색맹'
+        if 'Strong' == contents[:-3] :
+            degree = 'Strong'
+        elif 'Moderate' == contents[:-3] :
+            degree = 'Moderate'
+        else :
+            degree = 'Mild'
+    print(f'판별된 색맹 : {type_ans}')
+
+    # 사용자의 색각이상 타입이 정해졌는지 확인하기
+    # 커서 시작
+    cursor = conn.cursor()
+    query = "SELECT * FROM user_type"
+    cursor.execute(query)
+
+    result = cursor.fetchall()
+
+    is_exist = False
+
+    for r in result:
+        if r[0] == user_id:
+            is_exist = True
+            break
+
+    if not is_exist:
+        insert_query = "INSERT INTO user_type (user_id, type) VALUES (%s, %s)"
+        data = (user_id, type_ans)
+        cursor.execute(insert_query, data)
+        conn.commit()
+
+    else:
+        insert_query = "UPDATE user_type SET type=%s where user_id = %s"
+        data = (type_ans, user_id)
+        cursor.execute(insert_query, data)
+        conn.commit()
+
+    # 커서와 연결 종료
+    cursor.close()
+
+    res = {
+        "version": "2.0",
+        "template": {
+            "outputs": [
+                {
+                    "simpleText": {
+                        "text": f"색각이상 유형을 등록했습니다." + "\n" + "색각 이상 Quiz를 이용해보세요!" + "\n"+ f'사용자는 {type_ans}유형이고 강도는 {degree}입니다.'
+                    }
+                }
+            ]
+        }
+    }
+    return res
+
+
+if __name__ == "__main__":
+    load_first_model()
+    load_second_model()
+    load_third_model()
+    app.run(host='0.0.0.0', debug=True)
