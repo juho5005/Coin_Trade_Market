@@ -1,7 +1,7 @@
 # Software_Engineering_Coin_Market
 Dongguk Univ Coin market Service
 
-### User_Manual with Youtube : https://www.youtube.com/watch?v=td94KSLLEfo
+### User_Manual with Youtube : <a href="https://www.youtube.com/watch?v=td94KSLLEfo" target="_blank">https://www.youtube.com/watch?v=td94KSLLEfo</a>
 
 ### FrontEnd : HTML/CSS/JavaScript
 ### BackEnd : Python[Flask], NOSQL[MongoDB]
